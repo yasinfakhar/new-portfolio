@@ -101,7 +101,7 @@ function CursorAvatar() {
     </span>
   }
   return <div ref={ref} className="relative w-full select-none" aria-label="Yasin's 3D avatar looking toward the cursor">
-    <img src="/avatar-eye-base.png" alt="Yasin, 3D creator" className="h-auto w-full drop-shadow-[0_28px_50px_rgba(0,0,0,.4)]" />
+    <img src={`${import.meta.env.BASE_URL}avatar-eye-base.png`} alt="Yasin, 3D creator" className="h-auto w-full drop-shadow-[0_28px_50px_rgba(0,0,0,.4)]" />
     {eye(35.35, leftEyeRef, leftIrisRef)}{eye(55.25, rightEyeRef, rightIrisRef)}
   </div>
 }
