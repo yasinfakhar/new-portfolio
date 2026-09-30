@@ -16,47 +16,93 @@ function ContactButton() {
 
 function CursorAvatar() {
   const ref = useRef<HTMLDivElement>(null)
-  const [gaze, setGaze] = useState({ left: { x: 0, y: 0 }, right: { x: 0, y: 0 } })
+  const leftEyeRef = useRef<HTMLSpanElement>(null)
+  const rightEyeRef = useRef<HTMLSpanElement>(null)
+  const leftIrisRef = useRef<HTMLSpanElement>(null)
+  const rightIrisRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
+    const pointer = { x: 0, y: 0, active: false, lastMove: 0 }
+    const current = [{ x: 0, y: 0 }, { x: 0, y: 0 }]
+    const target = [{ x: 0, y: 0 }, { x: 0, y: 0 }]
+    const eyes = [leftEyeRef, rightEyeRef]
+    const irises = [leftIrisRef, rightIrisRef]
     let frame = 0
-    const move = (event: globalThis.MouseEvent) => {
-      if (!ref.current) return
-      cancelAnimationFrame(frame)
-      const { clientX, clientY } = event
-      frame = requestAnimationFrame(() => {
-        if (!ref.current) return
-        const r = ref.current.getBoundingClientRect()
-        const clamp = (value: number) => Math.max(-1, Math.min(1, value))
-        const ease = (value: number) => Math.sign(value) * (1 - Math.pow(1 - Math.abs(value), 2))
-        const maxX = r.width * .012
-        const maxY = r.width * .0055
-        const trackFrom = (eyeX: number) => {
-          // Each eye gets its own target vector. This creates natural convergence
-          // for close targets such as the nose, instead of moving both pupils in parallel.
-          const dx = clientX - (r.left + r.width * eyeX)
-          const dy = clientY - (r.top + r.height * .515)
-          const nx = clamp(dx / Math.max(r.width * .19, window.innerWidth * .16))
-          const ny = clamp(dy / Math.max(r.height * .22, window.innerHeight * .2))
-          const easedX = ease(nx)
-          const easedY = ease(ny)
-          const ellipticalLength = Math.hypot(easedX, easedY)
-          const boundaryScale = ellipticalLength > 1 ? 1 / ellipticalLength : 1
-          return { x: easedX * boundaryScale * maxX, y: easedY * boundaryScale * maxY }
-        }
-        setGaze({ left: trackFrom(.405), right: trackFrom(.603) })
-      })
+
+    // Fine-tuning controls: interpolation speed, ignored target jitter, and idle delay.
+    const SMOOTHING = .12
+    const DEAD_ZONE = .22
+    const IDLE_DELAY = 1200
+
+    const move = (event: PointerEvent) => {
+      pointer.x = event.clientX
+      pointer.y = event.clientY
+      pointer.active = true
+      pointer.lastMove = performance.now()
     }
-    window.addEventListener('mousemove', move, { passive: true })
-    return () => { cancelAnimationFrame(frame); window.removeEventListener('mousemove', move) }
+    const leave = () => { pointer.active = false }
+
+    const animate = (time: number) => {
+      const shouldTrack = pointer.active && time - pointer.lastMove < IDLE_DELAY
+
+      eyes.forEach((eyeRef, index) => {
+        const eye = eyeRef.current
+        const iris = irises[index].current
+        if (!eye || !iris) return
+
+        let nextX = 0
+        let nextY = 0
+        if (shouldTrack) {
+          const eyeBox = eye.getBoundingClientRect()
+          const irisBox = iris.getBoundingClientRect()
+          const eyeCenterX = eyeBox.left + eyeBox.width / 2
+          const eyeCenterY = eyeBox.top + eyeBox.height / 2
+          const dx = pointer.x - eyeCenterX
+          const dy = pointer.y - eyeCenterY
+          const distance = Math.hypot(dx, dy)
+
+          if (distance > 0) {
+            const angle = Math.atan2(dy, dx)
+            // Derive safe travel from the real socket/iris dimensions. The
+            // multipliers retain visible sclera and avoid eyelid overlap.
+            const maxX = Math.max(0, (eyeBox.width - irisBox.width) / 2 * .66)
+            const maxY = Math.max(0, (eyeBox.height - irisBox.height) / 2 * .62)
+            const saturation = 1 - Math.exp(-distance / Math.max(eyeBox.width * 3.8, 1))
+            nextX = Math.cos(angle) * maxX * saturation
+            nextY = Math.sin(angle) * maxY * saturation
+          }
+        }
+
+        if (Math.hypot(nextX - target[index].x, nextY - target[index].y) > DEAD_ZONE || !shouldTrack) {
+          target[index].x = nextX
+          target[index].y = nextY
+        }
+        current[index].x += (target[index].x - current[index].x) * SMOOTHING
+        current[index].y += (target[index].y - current[index].y) * SMOOTHING
+        iris.style.transform = `translate3d(${current[index].x.toFixed(3)}px,${current[index].y.toFixed(3)}px,0)`
+      })
+
+      frame = requestAnimationFrame(animate)
+    }
+
+    window.addEventListener('pointermove', move, { passive: true })
+    document.documentElement.addEventListener('pointerleave', leave)
+    window.addEventListener('blur', leave)
+    frame = requestAnimationFrame(animate)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('pointermove', move)
+      document.documentElement.removeEventListener('pointerleave', leave)
+      window.removeEventListener('blur', leave)
+    }
   }, [])
-  const eye = (left: number, direction: { x: number; y: number }) => {
-    return <span aria-hidden="true" className="absolute top-[48.3%] z-[2] h-[6.65%] w-[10.3%] overflow-hidden [clip-path:ellipse(49%_45%_at_50%_50%)]" style={{ left: `${left}%` }}>
-      <span className="absolute left-[19.4%] top-[6%] aspect-square w-[55.8%] rounded-full border border-[#3a1409]/60 bg-[radial-gradient(circle_at_62%_28%,white_0_4%,transparent_5%),radial-gradient(circle_at_50%_48%,#080504_0_30%,#2a0d05_31%_38%,#8a3e16_40%_67%,#3a1208_76%_100%)] shadow-[inset_0_0_5px_rgba(0,0,0,.75),0_1px_2px_rgba(0,0,0,.3)] transition-transform duration-150 ease-out" style={{ transform: `translate3d(${direction.x}px,${direction.y}px,0)`, willChange: 'transform' }} />
+  const eye = (left: number, eyeRef: typeof leftEyeRef, irisRef: typeof leftIrisRef) => {
+    return <span ref={eyeRef} aria-hidden="true" className="absolute top-[48.3%] z-[2] flex h-[6.65%] w-[10.3%] items-center justify-center overflow-hidden [clip-path:ellipse(49%_45%_at_50%_50%)]" style={{ left: `${left}%` }}>
+      <span ref={irisRef} className="aspect-square w-[55.8%] shrink-0 rounded-full border border-[#3a1409]/60 bg-[radial-gradient(circle_at_62%_28%,white_0_4%,transparent_5%),radial-gradient(circle_at_50%_48%,#080504_0_30%,#2a0d05_31%_38%,#8a3e16_40%_67%,#3a1208_76%_100%)] shadow-[inset_0_0_5px_rgba(0,0,0,.75),0_1px_2px_rgba(0,0,0,.3)]" style={{ willChange: 'transform' }} />
     </span>
   }
   return <div ref={ref} className="relative w-full select-none" aria-label="Yasin's 3D avatar looking toward the cursor">
     <img src="/avatar-eye-base.png" alt="Yasin, 3D creator" className="h-auto w-full drop-shadow-[0_28px_50px_rgba(0,0,0,.4)]" />
-    {eye(35.35, gaze.left)}{eye(55.25, gaze.right)}
+    {eye(35.35, leftEyeRef, leftIrisRef)}{eye(55.25, rightEyeRef, rightIrisRef)}
   </div>
 }
 
