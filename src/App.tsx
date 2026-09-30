@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ElementType, type ReactNode } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion'
+import avatarEyeBase from '../avatar-eye-base.png'
 
 const PALE = '#D7E2EA'
 
@@ -101,7 +102,7 @@ function CursorAvatar() {
     </span>
   }
   return <div ref={ref} className="relative w-full select-none" aria-label="Yasin's 3D avatar looking toward the cursor">
-    <img src={`${import.meta.env.BASE_URL}avatar-eye-base.png`} alt="Yasin, 3D creator" className="h-auto w-full drop-shadow-[0_28px_50px_rgba(0,0,0,.4)]" />
+    <img src={avatarEyeBase} alt="Yasin, 3D creator" className="h-auto w-full drop-shadow-[0_28px_50px_rgba(0,0,0,.4)]" />
     {eye(35.35, leftEyeRef, leftIrisRef)}{eye(55.25, rightEyeRef, rightIrisRef)}
   </div>
 }
